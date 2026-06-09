@@ -1,0 +1,15 @@
+numpy
+astropy
+astroquery
+strauss
+langchain-openai
+pydantic
+pydantic_settings
+matplotlib
+pexpect
+llama-cpp-python
+uvicorn
+starlette
+sse_starlette
+starlette_context
+fastapi
