@@ -25,7 +25,7 @@ Three pipeline variants are provided, sharing the same underlying processing ste
 
 ## Requirements
 
-- **CIAO 4.18** — Chandra Interactive Analysis of Observations ([installation guide](https://cxc.cfa.harvard.edu/ciao/))
+- **CIAO 4.18** — Chandra Interactive Analysis of Observations ([installation guide](https://cxc.cfa.harvard.edu/ciao/download/ciao_dmg.html))
 - **Python 3.11+**
 - **llama-cpp-python** with a locally hosted LLM (for LLM-assisted and agentic pipelines only)
 - **FluidR3\_GM.sf2** soundfont ([download from MuseScore](https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf2) or equivalent)
