@@ -1,1 +1,1 @@
-Sample sonification output.
+Sample soft band sonification output of ObsID 932.
