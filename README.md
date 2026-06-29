@@ -1,173 +1,187 @@
-# Chandrasonify: X-Ray Data Sonification Pipeline
+# chandrasonify: Automated X-Ray Sonification Pipeline
 
-Convert Chandra X-ray Observatory observations into audio representations through intelligent sonification. This project implements three processing pipelines—manual, LLM-assisted, and fully agentic—to transform X-ray source data into immersive audio-visual experiences.
+Convert Chandra X-Ray Observatory observations into audio representations through automated sonification.
+This project implements three processing pipelines — manual, LLM-assisted, and fully agentic — to transform X-ray point source detections into synchronised audio-visual output.
+
+A sample sonification output is provided in `examples/`.
+
+---
 
 ## Overview
 
-**Chandrasonify** is a system designed for astronomical sonification. It processes observations from the Chandra X-Ray Observatory (CXO) and transforms source detection data into synchronized audio and video output. The project explores both deterministic and AI-driven approaches to parameter selection, enabling researchers to:
+**chandrasonify** processes level-2 event files (evt2) from the Chandra X-Ray Observatory (CXO) and transforms point source detections into sound.
+Detected sources are mapped to audio parameters: sky position to stereo field and timing, declination to pitch, and net count rate to volume.
+The pipeline produces WAV audio files and optionally MP4 video overlays showing source positions synchronised to playback.
 
-- Sonify X-ray sources with automatic parameter tuning
-- Generate audio-visual representations of astronomical data
-- Use contextual metadata from SIMBAD to inform sonification strategies
+Three pipeline variants are provided, sharing the same underlying processing steps but differing in how parameters are selected:
 
-## Key Features
+| Pipeline | Parameter selection | LLM server required |
+|---|---|---|
+| `manual_code.py` | Static config file (`manual_config.py`) | No |
+| `llm_code.py` | Single LLM call per decision point | Yes |
+| `agentic_code_base.py` | Multi-agent reasoning with reflection loops | Yes |
 
-### Processing Pipeline Variants
+---
 
-1. **Manual Pipeline** (`manual_code.py`)
-   - Hardcoded sonification and detection parameters
-   - Deterministic, reproducible output
-   - Best for baseline comparisons and validation
+## Requirements
 
-2. **LLM-Assisted Pipeline** (`llm_code.py`)
-   - Language model decides parameters based on observation metadata
-   - Requires local LLM server (llama-server)
-   - Balances automation with interpretability
+- **CIAO 4.18** — Chandra Interactive Analysis of Observations ([installation guide](https://cxc.cfa.harvard.edu/ciao/))
+- **Python 3.11+**
+- **llama-cpp-python** with a locally hosted LLM (for LLM-assisted and agentic pipelines only)
+- **FluidR3\_GM.sf2** soundfont ([download from MuseScore](https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf2) or equivalent)
+- **FFmpeg** (for video overlay output)
 
-3. **Agentic Pipeline** (`agentic_code_base.py`)
-   - Multiple autonomous agents collaborate via reasoning loops
-   - Requires local LLM server (llama-server)
-   - Agents handle detection optimization, sonification, and band strategy
-   - Think → Act → Reflect architecture for agent decision-making
+---
 
-### Multi-Band Processing
+## Installation
 
-Splits X-ray data into e.g. soft (500–2000 eV) and hard (2000–7000 eV) energy bands when source density warrants it, enabling clearer sonification of complex observations.
+### Step 1 — Install and initialise CIAO
 
-### Integrated Astronomy Context
+Follow the [CIAO installation guide](https://cxc.cfa.harvard.edu/ciao/) for your platform.
+CIAO must be sourced in your shell before running the pipeline:
 
-- **SIMBAD Integration**: Fetches object classification and metadata
-- **Coordinate Resolution**: Automatically extracts and processes source positions
-- **FITS Handling**: Native support for Chandra FITS files
-
-### Comprehensive Audio-Visual Output
-
-- High-quality audio synthesis using FluidR3 soundfont
-- Synchronized video overlays showing source positions and energy bands
-- Customizable sonification parameters
-
-## Project Structure
-
-```
-chandrasonify/
-├── chandrasonify/
-│   ├── __init__.py                      # Package definition
-│   ├── config.py                        # System configuration
-│   ├── run_config.py                    # Runtime configuration for observation processing
-│   │
-│   ├── manual_code.py                   # Deterministic pipeline
-│   ├── manual_config.py                 # Manual pipeline parameter defaults
-│   │
-│   ├── llm_code.py                      # LLM-assisted pipeline
-│   ├── llm_config.py                    # LLM pipeline parameter fallbacks
-│   │
-│   ├── agentic_code_base.py             # Main agentic orchestrator
-│   ├── agentic_agents.py                # Agent implementations
-│   ├── agentic_config.py                # Agentic pipeline parameter defaults
-│   ├── agentic_tools.py                 # Tool definitions for agent invocation
-│   └── agentic_prompts.py               # LLM prompts for agent reasoning
-│
-├── sf2_broken_detection.py              # Utility to identify incompatible MIDI presets
-├── FluidR3_GM.sf2                       # Soundfont file for audio synthesis (download separately)
-├── simbad_otypes.csv                    # SIMBAD object type classification reference
-├── Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf  # Language model (download separately)
-│
-├── run_script.sh                        # Bash script for batch processing
-├── start_up_server.sh                   # Helper to launch llama-server
-├── requirements.txt                     # Python package dependencies
-└── README.md                            # This file
+```bash
+source /path/to/ciao-4.18/bin/ciao.sh
 ```
 
-## Installation & Setup
+### Step 2 — Create a virtual environment inside CIAO
 
-### Prerequisites
+To avoid dependency conflicts, create the project environment inside the CIAO Python installation:
 
-- **CIAO 4.18+**: Chandra Interactive Analysis of Observations ([download](https://cxc.cfa.harvard.edu/ciao/))
-- **Python 3.11+** with pip
-- **Server**: Local LLM server for LLM/agentic pipelines
+```bash
+cd /path/to/ciao-4.18
+python -m venv chandrasonify_env
+source chandrasonify_env/bin/activate
+```
 
-### Step 1: Install Python Dependencies
+### Step 3 — Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Key dependencies:
-- `astropy` – FITS and coordinate handling
-- `astroquery` – SIMBAD queries
-- `strauss` – Sonification framework
-- `pydantic` – Configuration validation
-- `langchain-openai` – LLM integration
-- `matplotlib` – Visualization
-- `pexpect` – Process interaction
-- `numpy` – Numerical computing
+Key dependencies and their roles in the pipeline:
 
-### Step 2: Configure System Paths
+- `astropy` — FITS file handling and coordinate transformations
+- `astroquery` — SIMBAD database queries for object classification
+- `strauss` — parameter-driven sonification framework; maps detected source properties to audio parameters
+- `pydantic` — runtime validation of LLM-generated parameter responses and observation metadata models
+- `langchain-openai` — LLM integration via OpenAI-compatible REST API
+- `matplotlib` — source distribution scatter plots and the scanning-bar animation overlays
+- `numpy` — numerical array operations on source data (normalisation, coordinate transforms)
+- `scipy` — audio quality evaluation (`scipy.io.wavfile` for clipping and silence checks)
+- `pexpect` — programmatic control of CIAO's interactive CLI tools; `wavdetect` prompts for output filenames interactively and `pexpect` handles these responses without a human operator
+- `llama-cpp-python` — local LLM model server (provides the OpenAI-compatible REST endpoint)
 
-Edit `config.py` to match your system:
+### Step 4 — Configure system paths
+
+Edit `config.py` to match your installation:
 
 ```python
-CIAO_BIN = "/Applications/ciao-4.18/bin"  # CIAO installation path
-SF2 = "FluidR3_GM.sf2"                      # Soundfont
-VIDEO_CODEC = "h264_videotoolbox"
+CIAO_BIN = "/path/to/ciao-4.18/bin"   # path to CIAO bin directory
+SF2      = "FluidR3_GM.sf2"            # path to soundfont file
+VIDEO_CODEC = "h264_videotoolbox"      # adjust for non-Apple hardware
 ```
 
-### Step 3 (For LLM/Agentic Pipelines): Start LLM Server
+If using a different soundfont, run the preset detection utility first to identify broken presets and update `BROKEN_PRESETS` in `config.py`:
 
 ```bash
-# Install ollama or use another llama-server provider
-llama-server -m Llama-3.1-8B-Instruct-Q8_K_M.gguf --port 8000
+python sf2_broken_detection.py
 ```
 
-Adjust the model path and port as needed. The LLM endpoint should be `http://localhost:8000/v1`.
+### Step 5 (LLM/agentic pipelines only) — Start the local model server
+
+The LLM-assisted and agentic pipelines require a locally hosted language model served via an OpenAI-compatible REST API.
+The model used in this work is `Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf`:
+
+```bash
+bash start_up_server.sh
+```
+
+The script starts the server on `http://localhost:8000/v1`.
+Adjust the model path, port, and GPU offload settings in `start_up_server.sh` to match your hardware.
+The manual pipeline has no server dependency.
+
+---
+
+## Data
+
+Download Chandra level-2 event files from the [Chandra Data Archive](https://cda.harvard.edu/chaser/) by searching for an Observation ID (ObsID).
+Place the `evt2.fits` file (or `evt2.fits.gz`) in a directory named after the ObsID:
+
+```
+data/
+└── 22304/
+    └── primary/
+        └── acisf22304N007_evt2.fits.gz
+```
+
+The pipeline searches recursively for any `.fits` or `.fits.gz` file containing `evt2` in the filename.
+
+---
 
 ## Usage
 
-### Quick Start
-
-Process a single Chandra observation using the default (agentic) pipeline:
+### Single observation
 
 ```bash
-python -m chandrasonify.agentic_code_base -o 22304
-```
-
-### Running the Three Pipelines
-
-#### Manual Pipeline (Fixed Parameters)
-
-```bash
+# Manual pipeline (no LLM server required)
 python -m chandrasonify.manual_code -o 22304
-```
 
-Parameters are defined in `manual_config.py`. Modify them for different sonification styles.
-
-#### LLM-Assisted Pipeline
-
-```bash
+# LLM-assisted pipeline
 python -m chandrasonify.llm_code -o 22304
-```
 
-The LLM analyzes observation metadata and SIMBAD context to select detection and sonification parameters dynamically.
-
-#### Agentic Pipeline (Recommended)
-
-```bash
+# Agentic pipeline
 python -m chandrasonify.agentic_code_base -o 22304
 ```
 
-Autonomous agents orchestrate the entire workflow:
-1. **ObservationResearcher** gathers SIMBAD context and metadata
-2. **DetectionOptimizer** refines wavelet detection parameters
-3. **BandStrategist** decides between single-band and dual-band processing
-4. **SonificationExpert** optimizes audio rendering parameters
-5. **QualityEvaluator** assesses output quality and suggests improvements
+If `-o` is omitted, the pipeline enters an interactive file-selection mode.
 
-### Batch Processing
+### Command-line flags
 
-Edit `run_script.sh` and specify multiple observation IDs:
+**All pipelines share:**
+
+| Flag | Description |
+|---|---|
+| `-o / --obs-id ID` | ObsID to process |
+| `--fresh` | Delete existing outputs and restart from scratch |
+| `--no-animation` | Produce WAV output only; skip video muxing |
+
+**Manual and LLM pipelines additionally support:**
+
+| Flag | Description |
+|---|---|
+| `-s / --save-dir DIR` | Custom output directory |
+| `--resume` | Force resume from a previous interrupted run |
+| `-i / --interactive` | Prompt for confirmation at each pipeline step |
+| `--band-mode full\|dual\|triple` | Override band mode selection |
+| `--check` | Browse previously processed observations |
+| `--check-id ID` | Inspect results for a specific previous run |
+| `--debug` | Enable verbose debug output |
+
+**Agentic pipeline additionally supports:**
+
+| Flag | Description |
+|---|---|
+| `-e / --evt2 PATH` | Provide EVT2 file path directly |
+| `--replay` | Replay decisions from a saved `run_config.json` |
+| `--browse` | Browse previously processed observations |
+| `--band-mode full_band\|dual_band\|triple_band` | Override band mode selection |
+| `--workspace DIR` | Set workspace root directory |
+
+Note: the agentic pipeline uses `--replay` where the manual and LLM pipelines use `--resume`, and `--browse` where they use `--check`. Band mode values also differ: the agentic pipeline expects underscored forms (`full_band`, `dual_band`, `triple_band`).
+
+### Batch processing
+
+Edit the `obs_ids` array in `run_script.sh` and uncomment the desired pipeline variant:
 
 ```bash
-obs_ids=(22304 23103 19920)
+obs_ids=(22304 839 3955 9369)
+
+# Uncomment one:
+# python -m chandrasonify.agentic_code_base -o "$obs_id"
+# python -m chandrasonify.llm_code -o "$obs_id"
+# python -m chandrasonify.manual_code -o "$obs_id"
 ```
 
 Then run:
@@ -176,176 +190,133 @@ Then run:
 bash run_script.sh
 ```
 
-### Command-Line Options
+For the LLM-assisted and agentic pipelines, the model server must be running for the full duration of the batch job.
+Start it with `bash start_up_server.sh` before launching the batch script.
+The manual pipeline has no server dependency and can be batched without a running model.
 
-For the agentic pipeline, use:
-
-```bash
-python -m chandrasonify.agentic_code_base --help
-```
-
-Common options:
-- `-o, --obs-id ID` – Observation ID to process
-- `--fresh` – Delete existing output and reprocess
-- `--data-dir DIR` – Custom data directory
-- `--output-dir DIR` – Custom output directory
-
-## Configuration
-
-### Manual/LLM/Agentic Configs
-
-Each pipeline has its own configuration file:
-
-| File | Purpose |
-|------|---------|
-| `manual_config.py` | Static parameters for manual pipeline |
-| `llm_config.py` | Fallback defaults for LLM pipeline |
-| `agentic_config.py` | Fallback defaults for agentic pipeline |
-| `run_config.py` | Observation-level settings (paths, band preferences) |
-| `config.py` | System-wide settings (CIAO, soundfont, codecs) |
-
-### Key Sonification Parameters
-
-- **DURATION**: Length of audio output in seconds (default: 60.0)
-- **PEAK_VOLUME_RANGE**: (min, max) volume scaling (default: 0.3–1.0)
-- **STEREO_SPREAD**: (min, max) left-right stereo positioning (default: 0.3–0.7)
-- **NOTE_LEN**: Duration of each sonified source note in seconds (default: 1.0)
-- **SF_PRESET**: MIDI instrument preset (0–127; default: 1)
-- **MASTER_VOLUME**: Global output gain (default: 0.6)
-
-### Detection Parameters
-
-- **WAVDETECT_SCALES**: Wavelet scales for source detection (default: "1 2 4 8")
-- **SIGNIFICANCE_THRESHOLD**: Detection significance level (default: 1e-6)
-
-### Band Strategy
-
-- **DUAL_BAND_THRESHOLD**: If source count exceeds this, use dual-band processing (default: 25)
-- **ENERGY_BANDS**: Energy ranges for soft/hard bands (default: soft 500–2000 eV, hard 2000–7000 eV)
+---
 
 ## Output
 
-For each observation, the pipeline generates:
+Each processed observation produces output under `output_<ID>/`:
 
 ```
-output/obs_<ID>/
-├── evt2_clean.fits              # Cleaned event list
-├── sources.txt                  # Detected sources and properties
-├── sources_<BAND>.txt           # Band-specific source lists
-├── detection_image.png          # X-ray source map
-├── sonification_params.json     # Selected parameters (for reproducibility)
-├── audio.wav                    # Final audio output
-├── overlay_<BAND>.mp4           # Video with overlay (if enabled)
-├── final_<BAND>.mp4             # Muxed audio + video
-└── logs/                        # Processing logs
+output_22304/
+├── run_config.json                                # parameters used (for reproducibility)
+├── source_coords_full.txt                         # full-band source coordinate table
+├── preprocessing/
+│   └── image_full.fits                            # full-band binned image
+├── detection_full/
+│   ├── wavdetect_src.fits                         # wavdetect source list
+│   ├── wavdetect_psf.fits                         # PSF map
+│   ├── wavdetect_nbkg.fits                        # background map
+│   ├── source_distribution_full.png               # source scatter plot
+│   └── source_coords_full.txt                     # source coordinate table
+├── sonification_full/
+│   ├── xray_sonification_full.wav                 # audio output
+│   ├── sonification_animation.mp4                 # silent video
+│   └── sonification_with_audio.mp4                # final muxed video
+│
+│   (for dual-band runs, additionally:)
+├── detection_soft/ and detection_hard/            # per-band detection products
+├── sonification_soft/ and sonification_hard/      # per-band audio and video
+├── sonification_overlay_animation.mp4             # combined overlay (silent)
+└── sonification_overlay_with_audio.mp4            # combined overlay with mixed audio
 ```
+
+The `run_config.json` records all parameters selected during the run under the `decisions` key, so that results can be inspected and reproduced.
+For the agentic pipeline, each agent decision is additionally logged with its source (`llm`, `manual`, or `fits_header`) and a timestamp.
+
+---
+
+## Project structure
+
+```
+chandrasonify/
+├── chandrasonify/
+│   ├── config.py                # system-wide paths and hardware settings
+│   ├── run_config.py            # per-observation runtime state and replay logic
+│   │
+│   ├── manual_code.py           # manual pipeline
+│   ├── manual_config.py         # static parameters for manual pipeline
+│   │
+│   ├── llm_code.py              # LLM-assisted pipeline
+│   ├── llm_config.py            # fallback defaults for LLM pipeline
+│   │
+│   ├── agentic_code_base.py     # agentic pipeline orchestrator
+│   ├── agentic_agents.py        # agent implementations
+│   ├── agentic_tools.py         # tool definitions (CIAO, SIMBAD, STRAUSS wrappers)
+│   ├── agentic_prompts.py       # LLM prompts for agent reasoning
+│   └── agentic_config.py        # fallback defaults for agentic pipeline
+│
+├── sf2_broken_detection.py      # utility to identify incompatible MIDI presets
+├── simbad_otypes.csv            # SIMBAD object type abbreviation lookup
+├── run_script.sh                # batch processing script
+├── start_up_server.sh           # LLM server startup script
+├── requirements.txt             # Python dependencies
+└── examples/                    # sample sonification output
+```
+
+---
+
+## Agentic pipeline: agent overview
+
+The agentic pipeline uses six specialised agents coordinated by a central director:
+
+| Agent | Role |
+|---|---|
+| `ObservationResearcher` | Extracts FITS header metadata and queries SIMBAD |
+| `DetectionOptimizer` | Selects wavdetect scales and significance threshold; retries up to 3 times |
+| `BandStrategist` | Decides between full-, dual-, and triple-band processing |
+| `SonificationExpert` | Selects sonification parameters; retries up to 2 times |
+| `OverlayComposer` | Renders multi-band overlay animation and muxes audio with FFmpeg |
+| `QualityEvaluator` | Validates final outputs against internal quality criteria |
+| `PipelineDirector` | Orchestrates agent invocation order and manages shared memory |
+
+Each agent follows a think → act → reflect loop: an LLM call determines the action, a tool executes it deterministically, and the result is evaluated before proceeding.
+
+---
 
 ## Troubleshooting
 
-### "CIAO not found"
+**CIAO tools not found**
+Ensure CIAO is sourced before running the pipeline: `source /path/to/ciao-4.18/bin/ciao.sh`
 
-Ensure `CIAO_BIN` is correctly configured in `config.py` and CIAO is installed:
+**LLM server connection refused**
+Start the server with `bash start_up_server.sh` and verify it is reachable: `curl http://localhost:8000/v1/models`
 
+**Soundfont not found**
+Place `FluidR3_GM.sf2` in the project root or update the `SF2` path in `config.py`.
+
+**Incompatible MIDI preset**
+Some presets are not supported by FluidR3. Run the detection utility and update `BROKEN_PRESETS` in `config.py`:
 ```bash
-source /Applications/ciao-4.18/bin/ciao.sh
-which wavdetect
+python sf2_broken_detection.py
 ```
 
-### "LLM connection refused"
+**No evt2 file found**
+Confirm that the observation directory contains a file matching `*evt2*.fits` or `*evt2*.fits.gz`.
 
-Start the LLM server:
+**wavdetect hangs**
+`pexpect` drives wavdetect interactively and waits for specific prompt strings. If a run hangs, check `detection_*/wavdetect.log` for the last line emitted and verify the CIAO version matches 4.18.
 
-```bash
-llama-server -m <model.gguf> --port 8000
-```
-
-Verify connection:
-
-```bash
-curl http://localhost:8000/v1/models
-```
-
-### "Soundfont file not found"
-
-Ensure `FluidR3_GM.sf2` exists in the current directory or update `SF2` path in `config.py`.
-
-### "Index error with MIDI preset"
-
-Some presets are incompatible with FluidR3. Run the detection utility:
-
-```bash
-python -m chandrasonify.sf2_broken_detection
-```
-
-This updates `BROKEN_PRESETS` in `config.py`. These presets are automatically skipped during sonification.
-
-### "Observation data not found"
-
-Download Chandra data using:
-
-```bash
-# Example with Chandra archive tools
-chandra_repro <OBS_ID>
-```
-
-Ensure the processed event file (`evt2_clean.fits`) is in the expected directory.
-
-## Architecture Highlights
-
-### Agent Design Pattern
-
-The agentic pipeline implements a **think → act → reflect** loop:
-
-1. **Think**: Agent LLM prompt analyzes the current state and decides next action
-2. **Act**: Execute the selected tool deterministically
-3. **Reflect**: Evaluate tool output; decide to proceed or retry
-
-Agent types in the pipeline:
-- **ObservationResearcher**: Gathers context (SIMBAD, metadata)
-- **DetectionOptimizer**: Tunes wavelet detection parameters
-- **BandStrategist**: Chooses processing strategy
-- **SonificationExpert**: Optimizes audio parameters
-- **PipelineDirector**: Orchestrates phase transitions
-- **QualityEvaluator**: Assesses and improves output
-
-### Tool Registry
-
-Tools are defined in `agentic_tools.py` with JSON schemas, allowing LLMs to invoke them with proper argument validation. Each tool returns structured `ToolResult` objects.
+---
 
 ## Citation
 
-If you use this repo in your research, please cite:
-
 ```bibtex
-@thesis{chandrasonify2026,
-  author={Annalena Alber},
-  title={Towards a Multi-Agent System for the Automated Sonification of Chandra X-Ray Point SOurce Detections},
-  school={University of Zurich},
-  year={2026}
+@mastersthesis{alber2026chandrasonify,
+  author = {Alber, Annalena},
+  title  = {Towards a Multi-Agent System for the Automated Sonification
+             of {Chandra} {X-Ray} Point Source Detections},
+  school = {University of Zurich},
+  year   = {2026}
 }
 ```
 
+---
+
 ## License
 
-This project is part of a Master's thesis at the Univerity of Zurich. Check the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a pull request
-
-## Authors
-
-- **Primary Author**: Annalena Alber
-- **Advisors**: Jason Armitage
-
-## Contact
-
-For questions or support:
-- **Email**: annalena.alber@uzh.ch
-- **GitHub Issues**: [Link to issues]
+This project was developed as part of a Master's thesis at the University of Zurich.
+See `LICENSE` for details.
