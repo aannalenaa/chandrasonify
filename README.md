@@ -37,7 +37,8 @@ Three pipeline variants are provided, sharing the same underlying processing ste
 
 ### Step 1 — Install and initialise CIAO
 
-Follow the [CIAO installation guide](https://cxc.cfa.harvard.edu/ciao/) for your platform.
+Follow the MacOS [CIAO installation guide](https://cxc.cfa.harvard.edu/ciao/download/ciao_dmg.html).
+The usability cannot be guaranteed on other OS.
 CIAO must be sourced in your shell before running the pipeline:
 
 ```bash
