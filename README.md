@@ -3,7 +3,7 @@
 Convert Chandra X-Ray Observatory observations into audio representations through automated sonification.
 This project implements three processing pipelines — manual, LLM-assisted, and fully agentic — to transform X-ray point source detections into synchronised audio-visual output.
 
-A sample sonification output is provided in `examples/`.
+A sample sonification output is provided as a download in `example/`.
 
 ---
 
