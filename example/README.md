@@ -1,3 +1,3 @@
 Sample soft band sonification output of ObsID 932.
 
-[▶ Sample sonification (ObsID 22304, dual-band)](examples/sonification_22304.mp4)
+[▶ Sample sonification (ObsID 932, soft-band)](examples/sonification_with_audio.mp4)
