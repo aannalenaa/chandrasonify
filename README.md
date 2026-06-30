@@ -308,16 +308,9 @@ Confirm that the observation directory contains a file matching `*evt2*.fits` or
 ```bibtex
 @mastersthesis{alber2026chandrasonify,
   author = {Alber, Annalena},
-  title  = {Towards a Multi-Agent System for the Automated Sonification
-             of {Chandra} {X-Ray} Point Source Detections},
+  title  = {Towards a {Multi-Agent System} for the {Automated} {Sonification}
+             of {Chandra} {X-Ray} {Point Source Detections}},
   school = {University of Zurich},
   year   = {2026}
 }
 ```
-
----
-
-## License
-
-This project was developed as part of a Master's thesis at the University of Zurich.
-See `LICENSE` for details.
